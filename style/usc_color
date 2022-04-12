@@ -1,0 +1,2 @@
+# USC COLOR
+axes.prop_cycle :  cycler('color', ['990000','FFCC00'])
