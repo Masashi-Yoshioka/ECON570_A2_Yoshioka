@@ -18,12 +18,12 @@ def fn_generate_corrmat(dim, corr):
     Generate a matrix with 1 in diagonal and with corr in off-diagonal
     
     dim: number of dimensions (int)
-    corr: corrrelation coefficient (float)
+    corr: correlation coefficient (float)
     '''
     
     acc  = []
     for i in range(dim):
-        row = np.ones((1, dim)) * corr
+        row = np.ones([1, dim]) * corr
         row[0][i] = 1
         acc.append(row)
     
@@ -45,7 +45,7 @@ def fn_generate_multnorm(nobs, nvar, corr):
     # Generate random normal distribution
     acc = []
     for i in range(nvar):
-        acc.append(np.reshape(np.random.normal(mu[i], std[i], nobs),(nobs, -1)))
+        acc.append(np.random.normal(mu[i], std[i], nobs).reshape(nobs, -1))
     
     normvars = np.concatenate(acc, axis = 1)
 
@@ -82,9 +82,10 @@ class my_DGP():
         
         p: proportion of treatment (float)
         '''
+        
         nobs = self.nobs
         treated = random.sample(range(nobs), round(nobs * p))
-        T = np.array([(1 if i in treated else 0) for i in range(nobs)]).reshape([-1, 1])
+        T = np.array([(1 if i in treated else 0) for i in range(nobs)]).reshape(-1, 1)
 
         return T
     
@@ -108,7 +109,7 @@ class my_DGP():
         # Disturbance
         e = np.random.normal(loc = 0., scale = 1., size = (nobs, 1))
         
-        # Define T based on a sigmoid function
+        # Define T using a sigmoid function
         p_logit = np.exp(C_scaled @ gamma + e)/(1. + np.exp(C_scaled @ gamma + e))
         T = (p_logit > p) * 1
 
@@ -155,7 +156,7 @@ class my_DGP():
                 # Generate a confounded treatment
                 T = self.conf_treat(C, p)
 
-                # Concatenate covariates and confounders
+                # Combine covariates and confounders
                 X_all = np.concatenate([X, C], axis = 1)
 
             # Without confounders
@@ -175,7 +176,7 @@ class my_DGP():
 
                 # Generate selection biases by S = gamma * T + epsilon where gamma is from U(0,1) and epsilon is from N(0,1)
                 delta = np.random.uniform(low = 0., high = 1., size = (1, nvar_selec))
-                epsilon = np.random.normal(loc = 0., scale = 1., size = (nobs, nvar_selec))         
+                epsilon = np.random.normal(loc = 0., scale = 1., size = (nobs, nvar_selec))
                 S = T @ delta + epsilon
 
                 # Compute the term of T and S
@@ -187,7 +188,8 @@ class my_DGP():
             elif selec == False:
                 S = None
                 term_TS = tau * T
-
+            
+            # Number of covariates + confounders
             nvar_all = X_all.shape[1]
 
             # Generate coefficients of covariates and confounders
@@ -199,6 +201,7 @@ class my_DGP():
             # Generate outcomes Y
             Y = intercept + term_TS + X_all @ beta + e
             
+            # There is no group dummy
             G = None
         
         # When outcomes are overrepresenting at zero
@@ -207,17 +210,17 @@ class my_DGP():
             # Randomized treatment
             T = self.random_treat(p)
             
-            # Randomly assign observations into 2 groups
+            # Randomly assign samples to 2 groups
             G = self.random_treat(p = 0.5)
             
             # Group 1: Participate regardless of the treatment status
             # Use error following gamma distribution so that Y is always positive
-            error1 = np.random.gamma(shape = tau, scale = 1., size = nobs).reshape([-1, 1])
+            error1 = np.random.gamma(shape = tau, scale = 1., size = nobs).reshape(-1, 1)
             Y_Group1 = intercept + tau * T + error1 # Note that it is always positive
             
             # Group 2: Participate if and only if treated
             # Use error following uniform distribution so that Y is always positive IF TREATED
-            error2 = np.random.uniform(low = -tau * 0.5, high = tau * 0.5, size = nobs).reshape([-1, 1])
+            error2 = np.random.uniform(low = -tau * 0.5, high = tau * 0.5, size = nobs).reshape(-1, 1)
             Y_Group2 = (tau + error2) * T # Note that it is zero if and only if T = 0
             
             # Randomly assign samples to two groups
@@ -271,7 +274,6 @@ class my_DGP():
 
                 colnames += ['participation', 'group']
             
-            
             # Convert the data into a dataframe
             df = pd.DataFrame(data)
             
@@ -279,7 +281,7 @@ class my_DGP():
             df.columns = colnames
             
             # Output the dataframe
-            path = 'data/' + file_name
+            path = './data/' + file_name
             df.to_csv(path, index = False)
             
         
@@ -319,7 +321,7 @@ class my_DGP():
         for r in tqdm(range(R)):
 
             # Generate data
-            Y, T, X, C, S, G = self.generate(tau, nvar_cov, corr_cov, nvar_conf, corr_conf, nvar_selec, corr_selec, p, intercept)
+            Y, T, X, C, S, _ = self.generate(tau, nvar_cov, corr_cov, nvar_conf, corr_conf, nvar_selec, corr_selec, p, intercept)
 
             # Calculate correlation coefficients
             corrYT, _ = pearsonr(Y.ravel(), T.ravel())
@@ -365,7 +367,7 @@ class my_DGP():
             # Output the correlations
             Dict = {'corr_YT': corrYTs, 'corr_YX': corrYXs, 'corr_TX': corrTXs, 'corr_XX': corrXXs}
             df = pd.DataFrame(Dict)
-            df.to_csv('data/1_2_Correlations_RA.csv', index = False)
+            df.to_csv('./data/1_2_Correlations_RA.csv', index = False)
             
         # With confounders but no selection biases
         elif (conf == True) & (selec == False):
@@ -382,7 +384,7 @@ class my_DGP():
             # Output the correlations
             Dict = {'corr_YT': corrYTs, 'corr_YC': corrYCs, 'corr_TX': corrTXs, 'corr_TC': corrTCs}
             df = pd.DataFrame(Dict)
-            df.to_csv('data/2_2_Correlations_Conf.csv', index = False)
+            df.to_csv('./data/2_2_Correlations_Conf.csv', index = False)
             
         # With selection biases
         elif selec == True:
@@ -399,7 +401,7 @@ class my_DGP():
             # Output the correlations
             Dict = {'corr_YT': corrYTs, 'corr_YX': corrYXs, 'corr_TS': corrTSs, 'corr_YS': corrYSs}
             df = pd.DataFrame(Dict)
-            df.to_csv('data/3_2_Correlations_Selec.csv', index = False)
+            df.to_csv('./data/3_2_Correlations_Selec.csv', index = False)
         
         plt.show()
 
@@ -522,14 +524,15 @@ def fn_experiment(tau, nvar_cov = 10, corr_cov = 0.5, conf = False, nvar_conf = 
 
     # Estimate the ATE repeatedly for each samples size in Nrange
     for nobs in tqdm(Nrange):
+        
         n_values += [nobs]
 
         # Generate data
         dgp = my_DGP(nobs, conf, selec, overrep)
-        Y, T, X, C, S, G = dgp.generate(tau, nvar_cov, corr_cov, nvar_conf, corr_conf, nvar_selec, corr_selec, p, intercept)
+        Y, T, X, C, S, _ = dgp.generate(tau, nvar_cov, corr_cov, nvar_conf, corr_conf, nvar_selec, corr_selec, p, intercept)
 
         # Estimate tauhats
-        tauhat, se_tauhat, dof = fn_tauhat(Y, T, X, C, S, X_control, C_control, S_control, COP)      
+        tauhat, se_tauhat, dof = fn_tauhat(Y, T, X, C, S, X_control, C_control, S_control, COP)
         cval = np.abs(t.ppf(q = alpha/2, df = dof))
 
         tauhats += [tauhat]
@@ -541,7 +544,7 @@ def fn_experiment(tau, nvar_cov = 10, corr_cov = 0.5, conf = False, nvar_conf = 
     if output == True:
         Dict = {'sample size': n_values, 'tauhat': tauhats, 'sehat': sehats, 'lb': lb, 'ub': ub}
         df = pd.DataFrame(Dict)
-        path = 'data/' + file_name
+        path = './data/' + file_name
         df.to_csv(path, index = False)
 
     return n_values, tauhats, sehats, lb, ub
@@ -635,18 +638,18 @@ def fn_monte_carlo(tau, nvar_cov = 10, corr_cov = 0.5, conf = False, nvar_conf =
             
             # Generate data
             dgp = my_DGP(nobs, conf, selec, overrep)
-            Y, T, X, C, S, G = dgp.generate(tau, nvar_cov, corr_cov, nvar_conf, corr_conf, nvar_selec, corr_selec, p, intercept)
-
+            Y, T, X, C, S, _ = dgp.generate(tau, nvar_cov, corr_cov, nvar_conf, corr_conf, nvar_selec, corr_selec, p, intercept)
+            
             # Estimate tauhats
             tauhat, se_tauhat, dof = fn_tauhat(Y, T, X, C, S, X_control, C_control, S_control, COP)
             tauhats += [tauhat]
             sehats += [se_tauhat]
             biases += [tauhat - tau]
-                
+            
         # Put the values into a dictionary
         estDict[nobs] = {
-            'tauhat':np.array(tauhats).reshape([-1, 1]),
-            'sehat':np.array(sehats).reshape([-1, 1]),
+            'tauhat':np.array(tauhats).reshape(-1, 1),
+            'sehat':np.array(sehats).reshape(-1, 1),
             'dof': dof
         }
         
@@ -658,14 +661,14 @@ def fn_monte_carlo(tau, nvar_cov = 10, corr_cov = 0.5, conf = False, nvar_conf =
             # Append the data
             if nobs == Nrange[0]: df_cum = df.copy()
             else: df_cum = df_cum.append(df, ignore_index = True)
-
+            
     # Show the results
     for nobs, results in estDict.items():
         bias, rmse, size = fn_bias_rmse_size(tau, results['tauhat'], results['sehat'], results['dof'], alpha)
         print(f'N = {nobs}: bias = {bias:.6f}, RMSE = {rmse:.6f}, size = {size:.4f}')
-    
+        
     # Output the data
     if output == True:
-        path = 'data/' + file_name
+        path = './data/' + file_name
         df_cum.to_csv(path, index = False)
 
